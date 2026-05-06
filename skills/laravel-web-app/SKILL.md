@@ -118,6 +118,25 @@ On existing projects: if a required skill is missing, offer to install it via `p
 - Prefer **PHP enums** everywhere — avoid magic strings
 - Prefer an **existing package** over writing custom implementations
 
+## Services and business logic
+
+If business logic is directly related to a model, you should add a new 
+method to the model to interface with it. If a service is directly 
+related to a model, there should be a method on the model that returns 
+that service.
+
+**Examples** 
+
+```php 
+// Correct.
+$model->getMedia();
+$model->getFeedService()->items();
+
+// Incorrect
+$controller->getMedia($model); 
+$service = (new FeedService($model))->items();
+```
+
 ## Permissions
 
 Use `spatie/laravel-permission` with **backed enums** (https://spatie.be/docs/laravel-permission/v7/basic-usage/enums). Seed/migrate permissions in code — never through a UI unless asked.
@@ -203,3 +222,4 @@ Types: feat, fix, docs, style, refactor, test, chore, perf
 - Write Unit tests that touch the database
 - State something as fact without solid evidence
 - Use scoped css in vue components, prefer stylesheet css
+- Add business logic to controllers (only for actions)
