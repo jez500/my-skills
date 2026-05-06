@@ -1,0 +1,85 @@
+version: '3.5'
+
+#########################################################################
+# Reusable extensions.
+#########################################################################
+
+x-volumes:
+  &default-volumes
+  volumes:
+    - .:/app:delegated
+    - storage:/app/storage
+
+x-environment:
+  &default-environment
+  APP_BUILDING: 'true'
+
+x-args:
+  &default-args
+  PHP_VERSION: ${PHP_VERSION:-8.4}
+
+x-user:
+  &default-user
+  user: ${DEFAULT_USER:-1000}
+
+
+#########################################################################
+# Docker volumes, used above with x-volumes.
+#########################################################################
+
+volumes:
+  storage:
+  database:
+  search_data:
+
+#########################################################################
+# Services
+#########################################################################
+
+services:
+
+  # PHP processes php-fpm requests
+  appserver:
+    build:
+      context: .
+      dockerfile: docker/php.dockerfile
+      args:
+        <<: *default-args
+    image: ${REGISTRY_NAMESPACE:-myapp}/app
+    <<: *default-volumes
+    <<: *default-user
+    depends_on:
+      - database
+      - search
+    environment:
+      <<: *default-environment
+    networks:
+      - default
+
+  database:
+    image: mysql:8.2
+    environment:
+      MYSQL_DATABASE: laravel
+      MYSQL_USER: laravel
+      MYSQL_PASSWORD: laravel
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - database:/var/lib/mysql
+    networks:
+      - default
+
+  search:
+    image: getmeili/meilisearch:v1.35
+    ports:
+      - 7700:7700
+    volumes:
+      - search_data:/meili_data
+    networks:
+      - default
+
+#########################################################################
+# External networks
+#########################################################################
+
+networks:
+  default:

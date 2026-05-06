@@ -1,0 +1,143 @@
+name: myapp
+recipe: laravel
+
+config:
+  env_file:
+    - .env
+
+tooling:
+  build:
+    service: appserver
+    description: Run npm build
+    cmd:
+      - npm install
+      - npm run build
+  npm:
+    service: appserver
+    description: Runs a npm command
+  npx:
+    service: appserver
+    description: Runs a npx command
+  artisan:
+    service: appserver
+    description: Run an artisan command
+    cmd: php artisan
+  clear:
+    service: appserver
+    description: Clear all local caches and configs
+    cmd:
+      - rm -f bootstrap/cache/*.php
+      - php artisan optimize:clear
+      - php artisan config:clear
+      - php artisan cache:clear
+      - composer dump-autoload
+  watch:
+    service: appserver
+    description: Watch and recompile assets
+    cmd:
+      - npm run dev -- --host --port 3331
+  prepare-storage:
+    service: appserver
+    description: Ensure storage dirs are set up correctly (run once after fresh clone)
+    cmd:
+      - mkdir -p storage/framework/{sessions,views,cache/data}
+      - mkdir -p storage/app/public
+      - mkdir -p storage/logs
+      - ln -sf ../storage/app/public public/storage
+  xdebug-on:
+    description: Enable xdebug for php.
+    cmd:
+      - appserver: cp /app/docker/xdebug.ini /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && pkill -USR2 php-fpm || true
+    user: root
+  xdebug-off:
+    description: Disable xdebug for php.
+    cmd:
+      - appserver: rm -f /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini && pkill -USR2 php-fpm || true
+    user: root
+  phpcs:
+    service: appserver
+    description: Check code style
+    cmd:
+      - ./vendor/bin/pint --test
+  phpcs-fix:
+    service: appserver
+    description: Fix code style
+    cmd: ./vendor/bin/pint
+  test:
+    description: Run tests
+    service: appserver
+    cmd:
+      - php artisan config:clear
+      - ./vendor/bin/pest
+  seed:
+    service: appserver
+    description: Fresh DB migrate and seed
+    cmd:
+      - php artisan migrate:fresh --seed
+      - php artisan cache:clear
+
+services:
+  appserver:
+    api: 3
+    type: lando
+    app_mount: /app
+    overrides:
+      ports:
+        - 3331:3331
+      build:
+        context: .
+        dockerfile: docker/php.dockerfile
+      volumes:
+        - .:/app:cached
+    services:
+      command: /start-app.sh
+    scanner:
+      retry: 5
+
+  # Meilisearch
+  search:
+    type: lando
+    app_mount: false
+    overrides:
+      image: getmeili/meilisearch:v1.35
+      ports:
+        - '7700'
+      volumes:
+        - ./storage/meilisearch:/meili_data
+    services:
+      command: ["/bin/meilisearch"]
+
+  # Separate test database
+  tests_db:
+    type: laravel-mysql
+    creds:
+      user: laravel
+      password: laravel
+      database: laravel
+
+  phpmyadmin:
+    type: phpmyadmin
+    hosts:
+      - database
+    overrides:
+      environment:
+        PMA_USER: laravel
+        PMA_PASSWORD: laravel
+    scanner:
+      retry: 2
+
+  mailhog:
+    type: mailhog
+    portforward: true
+    hogfrom:
+      - appserver
+    scanner:
+      retry: 2
+
+proxy:
+  mailhog:
+    - mail.myapp.lndo.site
+  phpmyadmin:
+    - pma.myapp.lndo.site
+  search:
+    - search.myapp.lndo.site:7700
